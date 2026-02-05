@@ -26,7 +26,7 @@ const Page3Left: React.FC = () => {
 
   if (!showText) return null;
 
-  const canGenerate = !!referenceImage && !!characterPrompt.trim();
+  const canGenerate = !!referenceImage;
 
   const handleFileSelect = (file: File) => {
     if (file.type.startsWith('image/')) {

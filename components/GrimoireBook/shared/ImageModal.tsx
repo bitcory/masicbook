@@ -19,7 +19,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
          onClick={onClose}>
-      <div className="relative w-full max-w-2xl bg-gradient-to-br from-[#1a130a] via-[#0f0a05] to-black rounded-2xl shadow-[0_20px_60px_rgba(251,191,36,0.3)] p-5 sm:p-6 border-2 border-amber-900/40"
+      <div className="relative w-full max-w-4xl bg-gradient-to-br from-[#1a130a] via-[#0f0a05] to-black rounded-2xl shadow-[0_20px_60px_rgba(251,191,36,0.3)] p-5 sm:p-6 border-2 border-amber-900/40"
            onClick={(e) => e.stopPropagation()}
            style={{
              boxShadow: `
@@ -51,7 +51,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
             src={`data:${image.mimeType};base64,${image.base64Data}`}
             alt={image.label}
             className="max-w-full rounded-lg border border-amber-900/30 shadow-lg"
-            style={{ maxHeight: '60vh' }}
+            style={{ maxHeight: '75vh' }}
           />
         </div>
 

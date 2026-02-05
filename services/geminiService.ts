@@ -100,18 +100,26 @@ export const generateCharacterView = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const anglePrompt = VIEW_ANGLE_PROMPTS[angle];
+  const hasUserPrompt = userPrompt && userPrompt.trim().length > 0;
+
   const fullPrompt = `Look at the provided reference image. Generate ONLY this ONE single character in a different angle. If the reference image contains multiple characters, focus ONLY on the main/central character.
 
-Generate a full-body ${anglePrompt} of this character. You MUST preserve:
-- The EXACT same face, hairstyle, hair color
+Generate a full-body ${anglePrompt} of this character.
+
+CRITICAL - You MUST preserve from the reference image:
+- The EXACT same face shape, facial features, and expression style
+- The EXACT same hairstyle, hair color, and hair length
+- The EXACT same outfit, clothing style, and colors
 - The EXACT same body proportions and art style
 - Show ONLY this ONE character, nothing else
 
-The user may request changes to outfit or accessories below. Apply those changes while keeping the character's identity (face, hair, body) consistent.
+${hasUserPrompt
+    ? `The user has requested specific modifications below. ONLY change what the user explicitly mentions. Keep everything else EXACTLY as shown in the reference image.
 
-Output: Single character standing on a clean white background. Image aspect ratio must be 3:4 (portrait).
+User's modifications: ${userPrompt}`
+    : `No modifications requested. Reproduce the character EXACTLY as shown in the reference image, only changing the viewing angle.`}
 
-User's character description and modifications: ${userPrompt}`;
+Output: Single character standing on a clean white background. Image aspect ratio must be 3:4 (portrait).`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-image-preview',
@@ -127,6 +135,84 @@ User's character description and modifications: ${userPrompt}`;
     config: {
       responseModalities: ['IMAGE', 'TEXT'],
       aspectRatio: '3:4',
+    } as any,
+  });
+
+  const parts = response.candidates?.[0]?.content?.parts;
+  if (!parts) throw new Error('응답이 없습니다.');
+
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      return {
+        base64Data: part.inlineData.data,
+        mimeType: part.inlineData.mimeType || 'image/png',
+      };
+    }
+  }
+
+  throw new Error('이미지가 생성되지 않았습니다.');
+};
+
+// 2x2 그리드 캐릭터 시트 생성 (4방향 뷰를 하나의 이미지로)
+export const generateCharacterGridSheet = async (
+  referenceImageBase64: string,
+  referenceImageMimeType: string,
+  userPrompt: string
+): Promise<{ base64Data: string; mimeType: string }> => {
+  const API_KEY = getApiKey();
+  if (!API_KEY) throw new Error('API Key가 설정되지 않았습니다.');
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const hasUserPrompt = userPrompt && userPrompt.trim().length > 0;
+
+  const fullPrompt = `Look at the provided reference image. Generate a CHARACTER SHEET with 4 views of this character arranged in a 2x2 grid layout.
+
+GRID LAYOUT (IMPORTANT - must be exactly this arrangement):
+┌─────────────┬─────────────┐
+│  TOP-LEFT   │  TOP-RIGHT  │
+│   FRONT     │    BACK     │
+│   VIEW      │    VIEW     │
+├─────────────┼─────────────┤
+│ BOTTOM-LEFT │BOTTOM-RIGHT │
+│    LEFT     │    RIGHT    │
+│   PROFILE   │   PROFILE   │
+└─────────────┴─────────────┘
+
+Each quadrant must show the SAME character from different angles:
+- TOP-LEFT: Front view (facing camera)
+- TOP-RIGHT: Back view (facing away)
+- BOTTOM-LEFT: Left side profile
+- BOTTOM-RIGHT: Right side profile
+
+CRITICAL - You MUST preserve from the reference image:
+- The EXACT same face shape, facial features, and expression style
+- The EXACT same hairstyle, hair color, and hair length
+- The EXACT same outfit, clothing style, and colors
+- The EXACT same body proportions and art style
+- All 4 views must show the IDENTICAL character with CONSISTENT style
+
+${hasUserPrompt
+    ? `The user has requested specific modifications below. Apply these changes consistently to ALL 4 views.
+
+User's modifications: ${userPrompt}`
+    : `No modifications requested. Reproduce the character EXACTLY as shown in the reference image for all 4 views.`}
+
+Output: 2x2 grid character sheet on a clean white background. Each quadrant should be clearly separated. Image aspect ratio must be 1:1 (square).`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-image-preview',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { inlineData: { data: referenceImageBase64, mimeType: referenceImageMimeType } },
+          { text: fullPrompt },
+        ],
+      },
+    ],
+    config: {
+      responseModalities: ['IMAGE', 'TEXT'],
+      aspectRatio: '1:1',
     } as any,
   });
 

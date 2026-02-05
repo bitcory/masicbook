@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { BookContextValue, GrimoireBookProps, CharacterData, GeneratedViewImage, ModalImage, ViewAngle, SaveData, SceneData } from '../types';
-import { generateLogline as generateLoglineService, generateCharacterView, generateSceneImagePrompt, generateSceneImage as generateSceneImageService, CharacterViewRef } from '../../../services/geminiService';
+import { generateLogline as generateLoglineService, generateCharacterGridSheet, generateSceneImagePrompt, generateSceneImage as generateSceneImageService, CharacterViewRef } from '../../../services/geminiService';
 
 const BookContext = createContext<BookContextValue | undefined>(undefined);
 
@@ -184,8 +184,8 @@ export const BookProvider: React.FC<BookProviderProps> = ({
 
   const generateCharacterViews = async () => {
     const char = characters[activeCharacterIndex];
-    if (!char.referenceImage || !char.characterPrompt.trim()) {
-      alert('참조 이미지와 프롬프트를 입력해주세요.');
+    if (!char.referenceImage) {
+      alert('참조 이미지를 먼저 업로드해주세요.');
       return;
     }
 
@@ -203,42 +203,72 @@ export const BookProvider: React.FC<BookProviderProps> = ({
       })),
     });
 
-    const results = await Promise.allSettled(
-      angles.map(angle =>
-        generateCharacterView(
-          char.referenceImage!.base64Data,
-          char.referenceImage!.mimeType,
-          angle,
-          char.characterPrompt
-        )
-      )
-    );
+    try {
+      // 1. 2x2 그리드 캐릭터 시트 생성
+      const gridResult = await generateCharacterGridSheet(
+        char.referenceImage.base64Data,
+        char.referenceImage.mimeType,
+        char.characterPrompt
+      );
 
-    const updatedViews: GeneratedViewImage[] = angles.map((angle, i) => {
-      const result = results[i];
-      if (result.status === 'fulfilled') {
-        return {
-          angle,
-          base64Data: result.value.base64Data,
-          mimeType: result.value.mimeType,
+      // 2. 그리드 이미지를 4개로 분할
+      const img = new Image();
+      img.src = `data:${gridResult.mimeType};base64,${gridResult.base64Data}`;
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('이미지 로드 실패'));
+      });
+
+      const halfW = Math.floor(img.width / 2);
+      const halfH = Math.floor(img.height / 2);
+
+      // 그리드 배치: top-left=front, top-right=back, bottom-left=left, bottom-right=right
+      const quadrants: { angle: ViewAngle; sx: number; sy: number }[] = [
+        { angle: 'front', sx: 0, sy: 0 },
+        { angle: 'back', sx: halfW, sy: 0 },
+        { angle: 'left', sx: 0, sy: halfH },
+        { angle: 'right', sx: halfW, sy: halfH },
+      ];
+
+      const views: GeneratedViewImage[] = [];
+
+      for (const q of quadrants) {
+        const canvas = document.createElement('canvas');
+        canvas.width = halfW;
+        canvas.height = halfH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas 생성 실패');
+
+        ctx.drawImage(img, q.sx, q.sy, halfW, halfH, 0, 0, halfW, halfH);
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64Data = dataUrl.split(',')[1];
+
+        views.push({
+          angle: q.angle,
+          base64Data,
+          mimeType: 'image/png',
           isLoading: false,
           error: null,
-        };
-      } else {
-        return {
+        });
+      }
+
+      updateCharacter(idx, {
+        generatedViews: views,
+        isGeneratingViews: false,
+      });
+    } catch (error: any) {
+      updateCharacter(idx, {
+        generatedViews: angles.map(angle => ({
           angle,
           base64Data: '',
           mimeType: '',
           isLoading: false,
-          error: result.reason?.message || '생성 실패',
-        };
-      }
-    });
-
-    updateCharacter(idx, {
-      generatedViews: updatedViews,
-      isGeneratingViews: false,
-    });
+          error: error.message || '생성 실패',
+        })),
+        isGeneratingViews: false,
+      });
+    }
   };
 
   // Grid split: 참조 이미지를 2x2로 분할하여 4방향 뷰에 할당
@@ -409,6 +439,12 @@ export const BookProvider: React.FC<BookProviderProps> = ({
       const scene1Image = index > 0 ? scenes[0]?.generatedImage || null : null;
       const result = await generateSceneImageService(scene.imagePrompt, ratio, charViews, scene1Image);
       updateScene(index, { generatedImage: result, isGeneratingImage: false });
+      // 생성 완료 후 모달로 이미지 표시
+      setModalImage({
+        base64Data: result.base64Data,
+        mimeType: result.mimeType,
+        label: `씬 ${scene.sceneNumber}: ${scene.title}`,
+      });
     } catch (error: any) {
       updateScene(index, { isGeneratingImage: false, error: error.message || '이미지 생성 실패' });
     }
