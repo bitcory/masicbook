@@ -72,7 +72,7 @@ const App: React.FC = () => {
     <BookProvider isOpen={isBookOpen} onOpen={handleOpenBook} onClose={handleCloseBook}>
       <div className="relative w-screen h-screen flex flex-col overflow-hidden bg-[#050505]">
         {/* Header */}
-        <header className="relative z-50 w-full py-2 sm:py-3 md:py-4">
+        <header className="relative z-50 w-full py-1 sm:py-1.5 md:py-2">
           <div className="container mx-auto px-4 sm:px-6 md:px-8 relative">
             <h1
               onClick={handleCloseBook}
