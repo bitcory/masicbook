@@ -1,0 +1,8 @@
+{
+  "name": "TB's Magic Grimoire",
+  "description": "An interactive digital grimoire for writers, featuring a magical opening sequence and AI-powered storytelling capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
