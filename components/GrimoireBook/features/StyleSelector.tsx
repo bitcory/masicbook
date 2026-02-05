@@ -8,7 +8,7 @@ interface StyleSelectorProps {
 
 const StyleSelector: React.FC<StyleSelectorProps> = ({ selectedStyle, onSelect }) => {
   return (
-    <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-12 sm:mb-16 md:mb-20">
+    <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4 sm:mb-6 md:mb-8">
       {STYLE_OPTIONS.map((style) => (
         <button
           key={style.id}
